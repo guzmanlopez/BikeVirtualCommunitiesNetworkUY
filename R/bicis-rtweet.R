@@ -1,48 +1,53 @@
 
 # Load libraries ----------------------------------------------------------
 
-library('rtweet')
-library('Rfacebook')
-library('RNeo4j')
-library('igraph')
+library('rtweet') # twitter API
+# library('Rfacebook') # facebook API
+library('RNeo4j') # Neo4j graph db
+library('igraph') # plot graph
 library('ggplot2') # plots
 
 # OAauth ------------------------------------------------------------------
 
+# For rtweet
+# twitter_token <- create_token(
+#   app = "app",
+#   consumer_key = "XXXX",
+#   consumer_secret = "XXXX"
+# )
+
 ## First time only
-
 # source(file = "twitter-OAuth.R")
-
 ## path of home directory
 # home_directory <- path.expand("~")
-
 ## combine with name for token
 # file_name <- file.path(home_directory, "twitter_token.rds")
-
 ## save token to home directory
 # saveRDS(twitter_token, file = file_name)
 
-# create .Renviron text file in home
-
-# cat(aste0("TWITTER_PAT=", file_name),
+# create empty .Renviron text file in home, after that:
+# cat(paste0("TWITTER_PAT=", file_name),
     # file = file.path(home_directory, ".Renviron"),
     # append = TRUE)
 
 # Neo4j graph database ----------------------------------------------------
 
+# read user and pass from external R script
 source(file = "neo4j-auth.R")
 
+# Start Neo4j service first from command line (sudo systemctl start neo4j.service)
 graph = startGraph("http://localhost:7474/db/data/",
                    username = neo4jUser, password = neo4jPass)
 clear(graph) # Remove all
 
-# Add constraints
+# Add constraints to db
 addConstraint(graph, label = "Tweet", key = "id")
 addConstraint(graph, label = "User", key = "screen_name")
 addConstraint(graph, label = "Hashtag", key = "name")
 addConstraint(graph, label = "Link", key = "url")
 addConstraint(graph, label = "Source", key = "name")
 
+# Create graph DB
 create_db = function(x) {
 
   tweet = getOrCreateNode(graph, "Tweet", id = x$id, text = x$text)
@@ -87,11 +92,119 @@ c(1:20) %>%
   paste0("your lucky number is ", .)
 
 
-# Get Followers/Follows data ----------------------------------------------
+# Get followers/friends data ----------------------------------------------
+
+# Function to get followers and friends data from user
+GetFollowersFriendsDataFromUser <- function(UserScreenName = NA, userId = NULL, summary = TRUE) {
+
+  if (!is.null(userId)) {
+
+    user = userId
+
+  } else {
+
+    message(paste("Getting user id for ", UserScreenName, "...", sep = ""))
+    # Look up for and get user id
+    user = search_users(q = UserScreenName, n = 1)[1,]
+    user = lookup_users(users = user$user_id)
+
+  }
+
+  if (is.na(user$user_id)) {
+
+    message("User not found!")
+
+  } else {
+
+    message("User id found!")
+
+    # Print user summary information
+    if (summary) {
+
+    cat(paste("--------------------------------------------------------- \n"))
+    cat(paste("User_id: ", user$user_id, " \n"))
+    cat(paste("Name: ", user$name, " \n"))
+    cat(paste("Screen_name: ", user$screen_name, " \n"))
+    cat(paste("Location: ", user$location, " \n"))
+    cat(paste("Created_at: ", user$created_at, " \n"))
+    cat(paste("Followers_count: ", user$followers_count, " \n"))
+    cat(paste("Friends_count: ", user$friends_count, " \n"))
+    cat(paste("Favourites_count: ", user$favourites_count, " \n"))
+    cat(paste("Description: ", user$description, " \n"))
+    cat(paste("--------------------------------------------------------- \n"))
+    cat(" \n")
+
+    }
+
+    # User Data + Friends Data + Followers Data
+    userFriendsFollowersData <- user
+    userFriendsFollowersData$user_reference <- NA
+    userFriendsFollowersData$user_relation <- NA
+
+    # Get user friends
+    message("Getting user's friends...")
+    userFriendsIds <- get_friends(user = user$user_id) # who this user follows
+    userFriendsData <- lookup_users(users = unlist(userFriendsIds))
+
+    # Add references to friends data
+    userFriendsData$user_reference <- rep(user$screen_name, nrow(userFriendsData))
+    userFriendsData$user_relation <- rep("friend", nrow(userFriendsData))
+    message("Finished!")
+
+    # get user followers
+    message("Getting user's followers...")
+    userFollowersIds <- get_followers(user = user$user_id, n = "all") # who this user follows
+    userFollowersData <- lookup_users(users = unlist(userFollowersIds))
+
+    # Add references to followers data
+    userFollowersData$user_reference <- rep(user$screen_name, nrow(userFollowersData))
+    userFollowersData$user_relation <- rep("follower", nrow(userFollowersData))
+    message("Finished!")
+
+    # Bind followers and friends
+    message("Binding data...")
+    userFriendsFollowers <- rbind(userFriendsData, userFollowersData)
+
+    # Bind followers and friends to user
+    userFriendsFollowersData <- rbind(userFriendsFollowersData, userFriendsFollowers)
+    message("Finished!")
+
+  }
+
+  # return
+  return(userFriendsFollowersData)
+
+}
+
+MasaCriticaMvd <- GetFollowersFriendsDataFromUser(UserScreenName = "MasaCriticaMvd")
+
+# Write data to file
+write.csv(MasaCriticaMvd, "MasaCriticaMvd.csv", sep = ",")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Look up for and get users
 MasaCriticaMvd <- search_users(q = "MasaCriticaMvd", n = 1)
 MasaCriticaMvd <- lookup_users(users = MasaCriticaMvd$user_id)
+
+# Summary for user
+print(MasaCriticaMvd[,c(1,2,3,4,10,6)])
+print(MasaCriticaMvd[,c(7,8,11)])
+print(MasaCriticaMvd[,c(5)])
 
 # Get data from the users
 MasaCriticaMvd$created
@@ -106,10 +219,20 @@ MasaCriticaMvdFriends <- get_friends(user = MasaCriticaMvd$user_id) # who this u
 ## lookup data on MasaCriticaMvdFriends friends
 MasaCriticaMvdFriendsData <- lookup_users(users = unlist(MasaCriticaMvdFriends))
 
+MasaCriticaMvdFriendsData$user_reference <- rep(MasaCriticaMvd$screen_name, nrow(MasaCriticaMvdFriendsData))
+MasaCriticaMvdFriendsData$user_relation <- rep("friend", nrow(MasaCriticaMvdFriendsData))
+
 # Followers
 MasaCriticaMvdFollowers <- get_followers(user = MasaCriticaMvd$user_id, n = "all") # who this user follows
 MasaCriticaMvdFollowersData <- lookup_users(users = unlist(MasaCriticaMvdFollowers))
 
+MasaCriticaMvdFollowersData$user_reference <- rep(MasaCriticaMvd$screen_name, nrow(MasaCriticaMvdFollowersData))
+MasaCriticaMvdFollowersData$user_relation <- rep("follower", nrow(MasaCriticaMvdFollowersData))
+
+# Bind followers and friends
+MasaCriticaMvdFriendsFollowers <- rbind(MasaCriticaMvdFriendsData, MasaCriticaMvdFollowersData)
+
+rbind(MasaCriticaMvd, MasaCriticaMvdFriendsFollowers)
 
 # Write data to file ------------------------------------------------------
 
