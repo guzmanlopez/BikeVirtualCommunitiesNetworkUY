@@ -112,7 +112,6 @@ GetFollowersFriendsDataFromUser <- function(UserScreenName = NA, userId = NA, su
     message(paste("Getting user id for ", UserScreenName, "...", sep = ""))
     # Look up for and get user id
     user = search_users(q = UserScreenName, n = 1)[1,]
-    user = lookup_users(users = user$user_id)
 
   }
 
@@ -128,7 +127,7 @@ GetFollowersFriendsDataFromUser <- function(UserScreenName = NA, userId = NA, su
     path = paste(getwd(), "/data/", sep = "")
 
     # Check if data alredy exists
-    if (file.exists(paste(path, "MasaCriticaMvd", ".csv", sep = ""))) {
+    if (file.exists(paste(path, user$screen_name, ".csv", sep = ""))) {
 
       message("Data alredy exists, exiting...")
 
@@ -209,22 +208,96 @@ MasaCriticaMvd.user_id <- MasaCriticaMvd$user_id[-1] # first row is the head use
 listFollowersFriendsData.MasaCriticaMvd <-
   lapply(
     X = 1:length(MasaCriticaMvd.user_id),
-    FUN = function(x)
+    FUN = function(x) {
       GetFollowersFriendsDataFromUser(userId = MasaCriticaMvd.user_id[x])
+      print(paste(x, "/", length(MasaCriticaMvd.user_id), sep = ""))
+    }
   )
 
 
 
-a <- GetFollowersFriendsDataFromUser(userId = '204047467')
+# Check followers and friends number for each file and return errors
+CheckFollowersAndFriendsNumber <- function(UserScreenName = NA, userId = NA, summary = TRUE) {
 
-which(MasaCriticaMvd.user_id == '204047467')
-
-# hacer que la función busque si existe el archivo csv en el directorio para seguir
+}
 
 
-b <- read.csv(file = "data/ OneLouderApps .csv")
+# Retrieve user ids of accounts following POTUS as example
 
-nrow(b)
+# Meter un while no se llega al total de followers, while no se llega al total de friends
+
+# Max number of ids per token every 15 minutes
+ids <- 75000
+
+# Get user potus
+potus = search_users(q = "potus", n = 1)[1,]
+
+# Get friends
+if (potus$friends_count < ids) {
+
+  f1 <- get_friends(user = potus$user_id)
+  ids = ids - potus$friends_count
+
+} else {
+
+  f1 <- get_friends(user = potus$user_id)
+  ids =
+
+  page <- next_cursor(f1)
+
+  # Wait 15 minutes
+  Sys.sleep(15*60)
+
+  f1b <- get_friends(potus$user_id, page = page)
+
+}
+
+# Get followers
+if (potus$followers_count < ids) {
+
+  f2 <- get_followers(user = potus$user_id, n = potus$followers_count)
+  ids = ids - potus$followers_count
+
+} else {
+
+  f2 <- get_followers(user = potus$user_id, n = ids)
+  ids = 0
+
+  page <- next_cursor(f2)
+
+  # Wait 15 minutes
+  Sys.sleep(15*60)
+
+  f3 <- get_followers("potus", n = 75000, page = page)
+
+}
+
+
+
+
+f1 <- get_followers("potus", n = 75000)
+page <- next_cursor(f1)
+
+# max. number of ids returned by one token is 75,000 every 15
+# minutes, so you'll need to wait a bit before collecting the
+# next batch of ids
+Sys.sleep(15*60) # Suspend execution of R expressions for 15 mins
+
+# Use the page value returned from \code{next_cursor} to continue
+# where you left off.
+f2 <- get_followers("potus", n = 75000, page = page)
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
