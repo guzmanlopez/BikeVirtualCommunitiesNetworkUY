@@ -124,66 +124,78 @@ GetFollowersFriendsDataFromUser <- function(UserScreenName = NA, userId = NA, su
 
     message("User found!")
 
-    # Print user summary information
-    if (summary) {
+    # Path to downloaded data
+    path = paste(getwd(), "/data/", sep = "")
 
-    cat(paste("--------------------------------------------------------- \n"))
-    cat(paste("User_id: ", user$user_id, " \n"))
-    cat(paste("Name: ", user$name, " \n"))
-    cat(paste("Screen_name: ", user$screen_name, " \n"))
-    cat(paste("Location: ", user$location, " \n"))
-    cat(paste("Created_at: ", user$created_at, " \n"))
-    cat(paste("Followers_count: ", user$followers_count, " \n"))
-    cat(paste("Friends_count: ", user$friends_count, " \n"))
-    cat(paste("Favourites_count: ", user$favourites_count, " \n"))
-    cat(paste("Description: ", user$description, " \n"))
-    cat(paste("--------------------------------------------------------- \n"))
-    cat(" \n")
+    # Check if data alredy exists
+    if (file.exists(paste(path, "MasaCriticaMvd", ".csv", sep = ""))) {
+
+      message("Data alredy exists, exiting...")
+
+    } else {
+
+      # Print user summary information
+      if (summary) {
+
+        cat(paste("--------------------------------------------------------- \n"))
+        cat(paste("User_id: ", user$user_id, " \n"))
+        cat(paste("Name: ", user$name, " \n"))
+        cat(paste("Screen_name: ", user$screen_name, " \n"))
+        cat(paste("Location: ", user$location, " \n"))
+        cat(paste("Created_at: ", user$created_at, " \n"))
+        cat(paste("Followers_count: ", user$followers_count, " \n"))
+        cat(paste("Friends_count: ", user$friends_count, " \n"))
+        cat(paste("Favourites_count: ", user$favourites_count, " \n"))
+        cat(paste("Description: ", user$description, " \n"))
+        cat(paste("--------------------------------------------------------- \n"))
+        cat(" \n")
+
+      }
+
+      # User Data + Friends Data + Followers Data
+      userFriendsFollowersData <- user
+      userFriendsFollowersData$user_reference <- NA
+      userFriendsFollowersData$user_relation <- NA
+
+      # Get user friends
+      message("Getting user's friends...")
+      userFriendsIds <- get_friends(user = user$user_id) # who this user follows
+      userFriendsData <- lookup_users(users = unlist(userFriendsIds))
+
+      # Add references to friends data
+      userFriendsData$user_reference <- rep(user$screen_name, nrow(userFriendsData))
+      userFriendsData$user_relation <- rep("friend", nrow(userFriendsData))
+      message("Finished!")
+
+      # get user followers
+      message("Getting user's followers...")
+      userFollowersIds <- get_followers(user = user$user_id, n = "all") # who this user follows
+      userFollowersData <- lookup_users(users = unlist(userFollowersIds))
+
+      # Add references to followers data
+      userFollowersData$user_reference <- rep(user$screen_name, nrow(userFollowersData))
+      userFollowersData$user_relation <- rep("follower", nrow(userFollowersData))
+      message("Finished!")
+
+      # Bind followers and friends
+      message("Binding data...")
+      userFriendsFollowers <- rbind(userFriendsData, userFollowersData)
+
+      # Bind followers and friends to user
+      userFriendsFollowersData <- rbind(userFriendsFollowersData, userFriendsFollowers)
+      message("Finished!")
+
+      # Write data to file
+      message("Writing data to file...")
+      write.csv(userFriendsFollowersData, paste("data/", user$screen_name, ".csv", sep = ""),
+                row.names = FALSE)
+
+      # return
+      return(userFriendsFollowersData)
 
     }
 
-    # User Data + Friends Data + Followers Data
-    userFriendsFollowersData <- user
-    userFriendsFollowersData$user_reference <- NA
-    userFriendsFollowersData$user_relation <- NA
-
-    # Get user friends
-    message("Getting user's friends...")
-    userFriendsIds <- get_friends(user = user$user_id) # who this user follows
-    userFriendsData <- lookup_users(users = unlist(userFriendsIds))
-
-    # Add references to friends data
-    userFriendsData$user_reference <- rep(user$screen_name, nrow(userFriendsData))
-    userFriendsData$user_relation <- rep("friend", nrow(userFriendsData))
-    message("Finished!")
-
-    # get user followers
-    message("Getting user's followers...")
-    userFollowersIds <- get_followers(user = user$user_id, n = "all") # who this user follows
-    userFollowersData <- lookup_users(users = unlist(userFollowersIds))
-
-    # Add references to followers data
-    userFollowersData$user_reference <- rep(user$screen_name, nrow(userFollowersData))
-    userFollowersData$user_relation <- rep("follower", nrow(userFollowersData))
-    message("Finished!")
-
-    # Bind followers and friends
-    message("Binding data...")
-    userFriendsFollowers <- rbind(userFriendsData, userFollowersData)
-
-    # Bind followers and friends to user
-    userFriendsFollowersData <- rbind(userFriendsFollowersData, userFriendsFollowers)
-    message("Finished!")
-
   }
-
-  # Write data to file
-  message("Writing data to file...")
-  write.csv(userFriendsFollowersData, paste("data/", user$screen_name, ".csv"),
-            row.names = FALSE)
-
-  # return
-  return(userFriendsFollowersData)
 
 }
 
@@ -203,15 +215,16 @@ listFollowersFriendsData.MasaCriticaMvd <-
 
 
 
+a <- GetFollowersFriendsDataFromUser(userId = '204047467')
+
+which(MasaCriticaMvd.user_id == '204047467')
+
+# hacer que la función busque si existe el archivo csv en el directorio para seguir
 
 
+b <- read.csv(file = "data/ OneLouderApps .csv")
 
-
-
-
-
-
-
+nrow(b)
 
 
 
