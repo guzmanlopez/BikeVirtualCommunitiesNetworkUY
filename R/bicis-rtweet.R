@@ -7,6 +7,10 @@ library('RNeo4j') # Neo4j graph db
 library('igraph') # plot graph
 library('ggplot2') # plots
 
+# Set Working directory ---------------------------------------------------
+
+setwd("~/AnacondaProjects/BikeVirtualCommunitiesNetworkUY/R")
+
 # OAauth ------------------------------------------------------------------
 
 # For rtweet
@@ -95,11 +99,13 @@ c(1:20) %>%
 # Get followers/friends data ----------------------------------------------
 
 # Function to get followers and friends data from user
-GetFollowersFriendsDataFromUser <- function(UserScreenName = NA, userId = NULL, summary = TRUE) {
+GetFollowersFriendsDataFromUser <- function(UserScreenName = NA, userId = NA, summary = TRUE) {
 
-  if (!is.null(userId)) {
+  if (!is.na(userId)) {
 
     user = userId
+    message(paste("Getting data for user id = ", user, "...", sep = ""))
+    user = lookup_users(users = user)
 
   } else {
 
@@ -116,7 +122,7 @@ GetFollowersFriendsDataFromUser <- function(UserScreenName = NA, userId = NULL, 
 
   } else {
 
-    message("User id found!")
+    message("User found!")
 
     # Print user summary information
     if (summary) {
@@ -171,16 +177,29 @@ GetFollowersFriendsDataFromUser <- function(UserScreenName = NA, userId = NULL, 
 
   }
 
+  # Write data to file
+  message("Writing data to file...")
+  write.csv(userFriendsFollowersData, paste("data/", user$screen_name, ".csv"),
+            row.names = FALSE)
+
   # return
   return(userFriendsFollowersData)
 
 }
 
-MasaCriticaMvd <- GetFollowersFriendsDataFromUser(UserScreenName = "MasaCriticaMvd")
+# Example
+MasaCriticaMvd <- GetFollowersFriendsDataFromUser(UserScreenName = "MasaCriticaMvd") # Using screenname
+MasaCriticaMvd <- GetFollowersFriendsDataFromUser(userId = '326757328') # Using id
 
-# Write data to file
-write.csv(MasaCriticaMvd, "MasaCriticaMvd.csv", sep = ",")
+# Get followers and friend of every follower and friend of MasaCriticaMvd
+MasaCriticaMvd.user_id <- MasaCriticaMvd$user_id[-1] # first row is the head user
 
+listFollowersFriendsData.MasaCriticaMvd <-
+  lapply(
+    X = 1:length(MasaCriticaMvd.user_id),
+    FUN = function(x)
+      GetFollowersFriendsDataFromUser(userId = MasaCriticaMvd.user_id[x])
+  )
 
 
 
