@@ -34,68 +34,6 @@ setwd("~/AnacondaProjects/BikeVirtualCommunitiesNetworkUY/R")
     # file = file.path(home_directory, ".Renviron"),
     # append = TRUE)
 
-# Neo4j graph database ----------------------------------------------------
-
-# read user and pass from external R script
-source(file = "neo4j-auth.R")
-
-# Start Neo4j service first from command line (sudo systemctl start neo4j.service)
-graph = startGraph("http://localhost:7474/db/data/",
-                   username = neo4jUser, password = neo4jPass)
-clear(graph) # Remove all
-
-# Add constraints to db
-addConstraint(graph, label = "Tweet", key = "id")
-addConstraint(graph, label = "User", key = "screen_name")
-addConstraint(graph, label = "Hashtag", key = "name")
-addConstraint(graph, label = "Link", key = "url")
-addConstraint(graph, label = "Source", key = "name")
-
-# Create graph DB
-create_db = function(x) {
-
-  tweet = getOrCreateNode(graph, "Tweet", id = x$id, text = x$text)
-  user = getOrCreateNode(graph, "User", username = x$screenName)
-  createRel(user, "POSTS", tweet)
-
-  reply_to_sn = x$replyToSN
-
-  if (length(reply_to_sn) > 0) {
-    reply_user = getOrCreateNode(graph, "User", username = reply_to_sn)
-    createRel(tweet, "REPLY_TO", reply_user)
-  }
-
-  retweet_sn = getRetweetSN(x$text)
-
-  if (!is.null(retweet_sn)) {
-    retweet_user = getOrCreateNode(graph, "User", username = retweet_sn)
-    createRel(tweet, "RETWEETS", retweet_user)
-  }
-
-  hashtags = getHashtags(x$text)
-
-  if (!is.null(hashtags)) {
-    hashtag_nodes = lapply(hashtags, function(h) getOrCreateNode(graph, "Hashtag", hashtag = h))
-    lapply(hashtag_nodes, function(h) createRel(tweet, "HASHTAG", h))
-  }
-
-  mentions = getMentions(x$text)
-
-  if (!is.null(mentions)) {
-    mentioned_users = lapply(mentions, function(m) getOrCreateNode(graph, "User", username = m))
-    lapply(mentioned_users, function(u) createRel(tweet, "MENTIONED", u))
-  }
-}
-
-
-# piping example
-#The pipe (%>%) simply passes along what’s on the left-hand side to the right-hand side of the line of code. Once it goes through the pipe, the output is assigned to the period (.), and it is by default plugged into the first argument of the function on the right-hand side of the pipe.
-
-c(1:20) %>%
-  sample(1) %>%
-  paste0("your lucky number is ", .)
-
-
 # Get followers/friends data ----------------------------------------------
 
 # Function to get followers and friends data from user
@@ -215,83 +153,88 @@ listFollowersFriendsData.MasaCriticaMvd <-
   )
 
 
-
 # Check followers and friends number for each file and return errors
 CheckFollowersAndFriendsNumber <- function(UserScreenName = NA, userId = NA, summary = TRUE) {
 
 }
 
-
-# Retrieve user ids of accounts following POTUS as example
-
-# Meter un while no se llega al total de followers, while no se llega al total de friends
-
-# Max number of ids per token every 15 minutes
-ids <- 75000
-
-# Get user potus
-potus = search_users(q = "potus", n = 1)[1,]
-
-# Get friends
-if (potus$friends_count < ids) {
-
-  f1 <- get_friends(user = potus$user_id)
-  ids = ids - potus$friends_count
-
-} else {
-
-  f1 <- get_friends(user = potus$user_id)
-  ids =
-
-  page <- next_cursor(f1)
-
-  # Wait 15 minutes
-  Sys.sleep(15*60)
-
-  f1b <- get_friends(potus$user_id, page = page)
-
-}
-
-# Get followers
-if (potus$followers_count < ids) {
-
-  f2 <- get_followers(user = potus$user_id, n = potus$followers_count)
-  ids = ids - potus$followers_count
-
-} else {
-
-  f2 <- get_followers(user = potus$user_id, n = ids)
-  ids = 0
-
-  page <- next_cursor(f2)
-
-  # Wait 15 minutes
-  Sys.sleep(15*60)
-
-  f3 <- get_followers("potus", n = 75000, page = page)
-
-}
-
-
-
-
+# Example
 f1 <- get_followers("potus", n = 75000)
 page <- next_cursor(f1)
-
-# max. number of ids returned by one token is 75,000 every 15
-# minutes, so you'll need to wait a bit before collecting the
-# next batch of ids
-Sys.sleep(15*60) # Suspend execution of R expressions for 15 mins
-
-# Use the page value returned from \code{next_cursor} to continue
-# where you left off.
+Sys.sleep(15*60)
 f2 <- get_followers("potus", n = 75000, page = page)
 
 
 
+# Global variables:
+ids <- 75000 # Max number of ids per token every 15 minutes
+f <- list() # List where followers will be appended
+page <- -1
+
+# Function to get all the followers from a user with pagination
+GetFollowersRecursivePagination <- function(userId, followers, page) {
+
+  if (followers < ids) {
+
+    message(paste("Followers < ids ", followers, sep = ""))
+    ftemp <- get_followers(user = userId, n = followers, page = page)
+    f <<- append(f, list(ftemp))
+    ids <<- ids - followers
+    message("Finish!")
+    return(f)
+
+  }
+
+  else if (followers == ids) {
+
+    message(paste("Followers == ids ", followers, sep = ""))
+    ftemp <- get_followers(user = userId, n = ids, page = page)
+    f <<- append(f, list(ftemp))
+    message("Waiting 15 mins...")
+    Sys.sleep(time = 15*60)
+    message("Go!")
+    ids <<- 75000
+    return(f)
+
+  }
+
+  else if (followers > ids) {
+
+    message(paste("Followers > ids ", followers, sep = ""))
+    ftemp <- get_followers(user = userId, n = ids, page = page)
+    ids <<- 0
+    f <<- append(f, list(ftemp))
+    page <<- next_cursor(ftemp)
+    message("Waiting 15 mins...")
+    Sys.sleep(time = 15*60)
+    message("Go!")
+    ids <<- 75000
+
+    # Recursive
+    f <<- append(f, list(GetFollowersRecursivePagination(userId = userId, followers = followers - 75000, page = page)))
+
+  }
+}
+
+# Test
+# Get user
+user <- lookup_users(users = "146620155")
+
+FAOClimate <- GetFollowersRecursivePagination(userId = user$user_id, followers = user$followers_count, page = -1)
+fabveggievegan <- GetFollowersRecursivePagination(userId = "3240204569", followers = 32285, page = -1)
+
+
+nrow(FAOClimate[[1]]) + length(FAOClimate[[2]])
+
+nrow(fabveggievegan[[1]]) + class(fabveggievegan[[2]])
+
+str(FAOClimate)
+
+length(FAOClimate[[1]]$user_id) + length(FAOClimate[[2]])
 
 
 
+head(FAOClimate[[1]]$user_id)
 
 
 
@@ -388,16 +331,75 @@ plot(g, layout = layout1)
 
 # Get tweets (3200 is the maximum to retrieve)
 tweetsMasaCriticaMvd <- userTimeline("MasaCriticaMvduy", n = 3200)
-tweetsLaDiaria <- userTimeline("laDiaria", n = 3200)
-tweetsElObservador <- userTimeline("ElObservador", n = 3200)
 
 # Convert to data frame
 tweetsMasaCriticaMvd.df <- twListToDF(tweetsMasaCriticaMvd)
-tweetsLaDiaria.df <- twListToDF(tweetsLaDiaria)
-tweetsElObservador.df <- twListToDF(tweetsElObservador)
 
 # Check head
 head(tweetsMasaCriticaMvd.df)
 
 
+
+
+
+# Neo4j graph database ----------------------------------------------------
+
+# read user and pass from external R script
+source(file = "neo4j-auth.R")
+
+# Start Neo4j service first from command line (sudo systemctl start neo4j.service)
+graph = startGraph("http://localhost:7474/db/data/",
+                   username = neo4jUser, password = neo4jPass)
+clear(graph) # Remove all
+
+# Add constraints to db
+addConstraint(graph, label = "Tweet", key = "id")
+addConstraint(graph, label = "User", key = "screen_name")
+addConstraint(graph, label = "Hashtag", key = "name")
+addConstraint(graph, label = "Link", key = "url")
+addConstraint(graph, label = "Source", key = "name")
+
+# Create graph DB
+create_db = function(x) {
+
+  tweet = getOrCreateNode(graph, "Tweet", id = x$id, text = x$text)
+  user = getOrCreateNode(graph, "User", username = x$screenName)
+  createRel(user, "POSTS", tweet)
+
+  reply_to_sn = x$replyToSN
+
+  if (length(reply_to_sn) > 0) {
+    reply_user = getOrCreateNode(graph, "User", username = reply_to_sn)
+    createRel(tweet, "REPLY_TO", reply_user)
+  }
+
+  retweet_sn = getRetweetSN(x$text)
+
+  if (!is.null(retweet_sn)) {
+    retweet_user = getOrCreateNode(graph, "User", username = retweet_sn)
+    createRel(tweet, "RETWEETS", retweet_user)
+  }
+
+  hashtags = getHashtags(x$text)
+
+  if (!is.null(hashtags)) {
+    hashtag_nodes = lapply(hashtags, function(h) getOrCreateNode(graph, "Hashtag", hashtag = h))
+    lapply(hashtag_nodes, function(h) createRel(tweet, "HASHTAG", h))
+  }
+
+  mentions = getMentions(x$text)
+
+  if (!is.null(mentions)) {
+    mentioned_users = lapply(mentions, function(m) getOrCreateNode(graph, "User", username = m))
+    lapply(mentioned_users, function(u) createRel(tweet, "MENTIONED", u))
+  }
+}
+
+
+# piping example
+#The pipe (%>%) simply passes along what’s on the left-hand side to the right-hand side of the line of code. Once it goes through the pipe, the output is assigned to the period (.), and it is by default plugged into the first argument of the function on the right-hand side of the pipe.
+
+c(1:20) %>%
+  sample(1) %>%
+  paste0("your lucky number is ", .)
 
