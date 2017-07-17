@@ -206,8 +206,8 @@ GetFollowersRecursivePagination <- function(userId, followers, page) {
     # Write data to file
     message("Writing data to files...")
 
-    df_user_id <- data.frame('user_id' = ftemp$user_id)
-    df_cursor <- data.frame('next_cursor' = attr(ftemp, "next_cursor"))
+    df_user_id <- data.frame('user_id' = list(ftemp)[[1]]$user_id)
+    df_cursor <- data.frame('next_cursor' = attr(list(ftemp)[[1]], "next_cursor"))
 
     # Followers ids
     write.csv(x = df_user_id,
@@ -236,8 +236,8 @@ GetFollowersRecursivePagination <- function(userId, followers, page) {
     # Write data to file
     message("Writing data to files...")
 
-    df_user_id <- data.frame('user_id' = ftemp$user_id)
-    df_cursor <- data.frame('next_cursor' = attr(ftemp, "next_cursor"))
+    df_user_id <- data.frame('user_id' = list(ftemp)[[1]]$user_id)
+    df_cursor <- data.frame('next_cursor' = attr(list(ftemp)[[1]], "next_cursor"))
 
     # Followers ids
     write.csv(x = df_user_id,
