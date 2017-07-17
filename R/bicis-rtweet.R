@@ -158,83 +158,181 @@ CheckFollowersAndFriendsNumber <- function(UserScreenName = NA, userId = NA, sum
 
 }
 
-# Example
-f1 <- get_followers("potus", n = 75000)
-page <- next_cursor(f1)
-Sys.sleep(15*60)
-f2 <- get_followers("potus", n = 75000, page = page)
 
-
+# Get followers with pagination -------------------------------------------
 
 # Global variables:
 ids <- 75000 # Max number of ids per token every 15 minutes
-f <- list() # List where followers will be appended
-page <- -1
+f <- list() # Vector where user_ids from followers will be appended
 
 # Function to get all the followers from a user with pagination
 GetFollowersRecursivePagination <- function(userId, followers, page) {
 
-  if (followers < ids) {
+  if (ids == 0) {
 
-    message(paste("Followers < ids ", followers, sep = ""))
-    ftemp <- get_followers(user = userId, n = followers, page = page)
-    f <<- append(f, list(ftemp))
-    ids <<- ids - followers
-    message("Finish!")
-    return(f)
-
-  }
-
-  else if (followers == ids) {
-
-    message(paste("Followers == ids ", followers, sep = ""))
-    ftemp <- get_followers(user = userId, n = ids, page = page)
-    f <<- append(f, list(ftemp))
+    # API Twitter Limit reached - Wait
     message("Waiting 15 mins...")
-    Sys.sleep(time = 15*60)
+    total <- 15*60 # Total time = 15 min ~ 900 sec
+    pb <- txtProgressBar(min = 0, max = total, style = 3) # create progress bar
+
+    for (i in 1:total) {
+      Sys.sleep(time = 1) # 1 second interval
+      setTxtProgressBar(pb, i) # update progress bar
+    }
+    close(pb)
+
+    # Check rate limit followers/ids query
+    if (!rate_limit(token = NULL)[38,]$reset > 14.9) {
+      message("Waiting 15 seconds more...")
+      Sys.sleep(time = 15) # wait 15 seconds more...
+    }
+
     message("Go!")
     ids <<- 75000
-    return(f)
+  }
 
+  if (followers <= ids) {
+
+    message(paste("Followers <= ids | Number of Followers: ",
+                  followers, " | Number of resting ids: ",  ids, sep = ""))
+    ftemp <- get_followers(user = userId, n = followers, page = page)
+
+    f <<- append(f, list(ftemp)) # append followers ids
+
+    ids <<- ids - followers
+    rtemp <- f
+    f <<- list()
+
+    # Write data to file
+    message("Writing data to files...")
+
+    df_user_id <- data.frame('user_id' = ftemp$user_id)
+    df_cursor <- data.frame('next_cursor' = attr(ftemp, "next_cursor"))
+
+    # Followers ids
+    write.csv(x = df_user_id,
+              file = paste("data/followers/", userId, "_followers_ids.csv", sep = ""),
+              row.names = FALSE,
+              append = TRUE)
+
+    # Cursors
+    write.csv(x = df_cursor,
+              file = paste("data/followers/", userId, "_followers_cursors.csv", sep = ""),
+              row.names = FALSE,
+              append = TRUE)
+
+    message("Finished!")
+    return(rtemp)
   }
 
   else if (followers > ids) {
 
-    message(paste("Followers > ids ", followers, sep = ""))
+    message(paste("Followers > ids | Number of Followers: ",
+                  followers, " | Number of resting ids: ",  ids, sep = ""))
     ftemp <- get_followers(user = userId, n = ids, page = page)
-    ids <<- 0
-    f <<- append(f, list(ftemp))
-    page <<- next_cursor(ftemp)
+
+    f <<- append(f, list(ftemp)) # append followers ids
+
+    # Write data to file
+    message("Writing data to files...")
+
+    df_user_id <- data.frame('user_id' = ftemp$user_id)
+    df_cursor <- data.frame('next_cursor' = attr(ftemp, "next_cursor"))
+
+    # Followers ids
+    write.csv(x = df_user_id,
+              file = paste("data/followers/", userId, "_followers_ids.csv", sep = ""),
+              row.names = FALSE,
+              append = TRUE)
+
+    # Cursors
+    write.csv(x = df_cursor,
+              file = paste("data/followers/", userId, "_followers_cursors.csv", sep = ""),
+              row.names = FALSE,
+              append = TRUE)
+
+    n <- ids # n = count of followers ids already acquired
+
+    pageTemp <- next_cursor(ftemp) # Pagination
+
+    # API Twitter Limit reached - Wait
     message("Waiting 15 mins...")
-    Sys.sleep(time = 15*60)
+    total <- 15*60 # Total time = 15 min ~ 900 sec
+    pb <- txtProgressBar(min = 0, max = total, style = 3) # create progress bar
+
+    for (i in 1:total) {
+      Sys.sleep(time = 1) # 1 second interval
+      setTxtProgressBar(pb, i) # update progress bar
+    }
+    close(pb)
+
+    # Check rate limit followers/ids query
+    if (!rate_limit(token = NULL)[38,]$reset > 14.9) {
+      message("Waiting 15 seconds more...")
+      Sys.sleep(time = 15) # wait 15 seconds more...
+    }
+
     message("Go!")
     ids <<- 75000
 
-    # Recursive
-    f <<- append(f, list(GetFollowersRecursivePagination(userId = userId, followers = followers - 75000, page = page)))
-
+    # Recursive function call
+    GetFollowersRecursivePagination(userId = userId,
+                                    followers = followers - n,
+                                    page = pageTemp)
   }
 }
 
-# Test
+# Test ( > 75000 followers )
 # Get user
-user <- lookup_users(users = "146620155")
+user1 <- lookup_users(users = "146620155")
 
-FAOClimate <- GetFollowersRecursivePagination(userId = user$user_id, followers = user$followers_count, page = -1)
-fabveggievegan <- GetFollowersRecursivePagination(userId = "3240204569", followers = 32285, page = -1)
-
-
-nrow(FAOClimate[[1]]) + length(FAOClimate[[2]])
-
-nrow(fabveggievegan[[1]]) + class(fabveggievegan[[2]])
+# Sys.sleep((as.numeric(as.character(60 * rate_limit(token = NULL)[38,]$reset))) + 10)
+FAOClimate <- GetFollowersRecursivePagination(userId = user1$user_id,
+                                              followers = user1$followers_count,
+                                              page = '-1')
 
 str(FAOClimate)
 
-length(FAOClimate[[1]]$user_id) + length(FAOClimate[[2]])
 
 
 
-head(FAOClimate[[1]]$user_id)
+# Test ( < 75000 followers )
+# Get user
+user3 <- lookup_users(users = "905674153")
+Bici_Solidaria <- GetFollowersRecursivePagination(userId = user3$user_id,
+                                                  followers = user3$followers_count,
+                                                  page = '-1')
+
+str(Bici_Solidaria)
+
+# Test ( > 75000 followers, 260818 followers )
+# Get user
+user2 <- lookup_users(users = "300144495")
+PoliciadeMadrid <- GetFollowersRecursivePagination(userId = user2$user_id,
+                                                   followers = user2$followers_count,
+                                                   page = '-1')
+
+
+
+
+rate_limit(token = NULL)[38,]$reset
+
+
+
+
+
+
+
+length(PoliciadeMadrid)
+str(PoliciadeMadrid)
+
+
+
+
+
+
+
+rate_limit(token = NULL)[38,]
 
 
 
@@ -243,44 +341,23 @@ head(FAOClimate[[1]]$user_id)
 
 
 
+
+
+l2 <- list()
+df <- data.frame('user_id' = as.character(1:5))
+l2 <- append(l2, list(df))
+l2 <- append(l2, list(df))
+
+str(l2)
+l2
+l2[[1]]$a
+l2[[2]]$a
 
 
 # Look up for and get users
 MasaCriticaMvd <- search_users(q = "MasaCriticaMvd", n = 1)
 MasaCriticaMvd <- lookup_users(users = MasaCriticaMvd$user_id)
 
-# Summary for user
-print(MasaCriticaMvd[,c(1,2,3,4,10,6)])
-print(MasaCriticaMvd[,c(7,8,11)])
-print(MasaCriticaMvd[,c(5)])
-
-# Get data from the users
-MasaCriticaMvd$created
-MasaCriticaMvd$description
-MasaCriticaMvd$followers_count # 296
-MasaCriticaMvd$friends_count # 15
-MasaCriticaMvd$location
-
-# Friends
-MasaCriticaMvdFriends <- get_friends(user = MasaCriticaMvd$user_id) # who this user follows
-
-## lookup data on MasaCriticaMvdFriends friends
-MasaCriticaMvdFriendsData <- lookup_users(users = unlist(MasaCriticaMvdFriends))
-
-MasaCriticaMvdFriendsData$user_reference <- rep(MasaCriticaMvd$screen_name, nrow(MasaCriticaMvdFriendsData))
-MasaCriticaMvdFriendsData$user_relation <- rep("friend", nrow(MasaCriticaMvdFriendsData))
-
-# Followers
-MasaCriticaMvdFollowers <- get_followers(user = MasaCriticaMvd$user_id, n = "all") # who this user follows
-MasaCriticaMvdFollowersData <- lookup_users(users = unlist(MasaCriticaMvdFollowers))
-
-MasaCriticaMvdFollowersData$user_reference <- rep(MasaCriticaMvd$screen_name, nrow(MasaCriticaMvdFollowersData))
-MasaCriticaMvdFollowersData$user_relation <- rep("follower", nrow(MasaCriticaMvdFollowersData))
-
-# Bind followers and friends
-MasaCriticaMvdFriendsFollowers <- rbind(MasaCriticaMvdFriendsData, MasaCriticaMvdFollowersData)
-
-rbind(MasaCriticaMvd, MasaCriticaMvdFriendsFollowers)
 
 # Write data to file ------------------------------------------------------
 
