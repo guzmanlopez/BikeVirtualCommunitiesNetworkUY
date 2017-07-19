@@ -103,7 +103,7 @@ GetFollowersRecursivePagination <- function(userId, followers, page, allFollower
         f <<- list()
 
         # Write data to file
-        message("Writing data to files...")
+        message("Writting data to files...")
 
         # Make data frames
         df_user_id <- data.frame('user_id' = list(ftemp)[[1]])
@@ -135,7 +135,7 @@ GetFollowersRecursivePagination <- function(userId, followers, page, allFollower
         f <<- append(f, list(ftemp)) # append followers ids
 
         # Write data to file
-        message("Writing data to files...")
+        message("Writting data to files...")
 
         # Make data frames
         df_user_id <- data.frame('user_id' = list(ftemp)[[1]])
