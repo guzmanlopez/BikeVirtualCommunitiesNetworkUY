@@ -43,13 +43,31 @@ f <- list() # Vector where user_ids from followers will be appended
 # Function to get all the followers from a user with pagination
 GetFollowersRecursivePagination <- function(userId, followers, page, allFollowers, screen_name, protected) {
 
+  # Print screenname of User
   message(paste(" | ", screen_name, " | ", sep = ""))
 
   if (!protected) {
 
     if (allFollowers > 225000) {
-      message("User with more than 225000 Followers")
+      warning(paste("User ", screen_name, " with more than 225000 Followers", sep = ""))
       return(NA)
+    }
+
+    if (rate_limit(token = NULL, query = "followers/ids")$remaining == 0) {
+
+      # API Twitter Limit reached - Wait
+      message("Waiting 15 mins...")
+      total <- 15*60 # Total time = 15 min ~ 900 sec
+      pb <- txtProgressBar(min = 0, max = total, style = 3) # create progress bar
+
+      for (i in 1:total) {
+        Sys.sleep(time = 1) # 1 second interval
+        setTxtProgressBar(pb, i) # update progress bar
+      }
+      close(pb)
+      message("Go!")
+      ids <<- 75000
+
     }
 
     f <- paste("data/followers/", screen_name, "-", userId, "-followers-user_id.csv", sep = "")
@@ -59,9 +77,11 @@ GetFollowersRecursivePagination <- function(userId, followers, page, allFollower
 
     if (fileExists) {
       if (allFollowers > 500) {
-        gotAllFollowers <- (length(readLines(f)) - 1) > allFollowers - offset
+        gotAllFollowers <- ((length(readLines(f)) - 1) >= allFollowers - offset)
+        print(length(readLines(f)))
       } else {
-        gotAllFollowers <- (length(readLines(f)) - 1) > allFollowers
+        gotAllFollowers <- ((length(readLines(f)) - 1) >= allFollowers)
+        print(length(readLines(f)))
       }
     }
 
@@ -79,13 +99,6 @@ GetFollowersRecursivePagination <- function(userId, followers, page, allFollower
           setTxtProgressBar(pb, i) # update progress bar
         }
         close(pb)
-
-        # Check rate limit followers/ids query
-        if (!rate_limit(token = NULL)[38,]$reset > 14.9) {
-          message("Waiting 15 seconds more...")
-          Sys.sleep(time = 15) # wait 15 seconds more...
-        }
-
         message("Go!")
         ids <<- 75000
       }
@@ -167,13 +180,6 @@ GetFollowersRecursivePagination <- function(userId, followers, page, allFollower
           setTxtProgressBar(pb, i) # update progress bar
         }
         close(pb)
-
-        # Check rate limit followers/ids query
-        if (!rate_limit(token = NULL)[38,]$reset > 14.9) {
-          message("Waiting 15 seconds more...")
-          Sys.sleep(time = 15) # wait 15 seconds more...
-        }
-
         message("Go!")
         ids <<- 75000
 
@@ -188,12 +194,11 @@ GetFollowersRecursivePagination <- function(userId, followers, page, allFollower
     } else {
 
       message("User's followers already downloaded!")
-      message("Returned NA")
       return(NA)
     }
   } else {
 
-    warning("The user has a protected account")
+    warning(paste("The user ", screen_name, " has a protected account", sep = ""))
     return(NA)
   }
 }
@@ -257,13 +262,12 @@ MasaCriticaMvd_followers_2 <- lapply(
 
 
 # Check limits
-rate_limit(token = NULL)[38,] # followers
-rate_limit(token = NULL)[36,] # lookup
-
+rate_limit(token = NULL, query = "followers/ids")
+rate_limit(token = NULL, query = "lookup/users")
 
 
 # Example
-a <- lookup_users(users = "253116745")
+a <- lookup_users(users = "826862643415752704")
 b <- GetFollowersRecursivePagination(userId = a$user_id,
                                      followers = a$followers_count,
                                      page = '-1',
